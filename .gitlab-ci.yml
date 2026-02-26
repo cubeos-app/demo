@@ -44,14 +44,14 @@ build:demo:
     - npm ci --no-audit --no-fund
     - |
       export VITE_DEMO_MODE=true
-      npx vite build --mode production
+      VITE_DEMO_MODE=true npx vite build
       echo "Build complete — $(find dist -type f | wc -l) files in dist/"
     - |
-      # Validate: DemoApiClient must be in the build output
       if grep -rq 'DemoApiClient' dist/assets/*.js; then
-        echo "PASS: Demo mode verified — DemoApiClient found in build"
+        echo "PASS: Demo mode verified"
       else
-        echo "FAIL: DemoApiClient not found in build output"
+        echo "FAIL: DemoApiClient not found"
+        ls dist/assets/demo-*.js 2>/dev/null || echo "No demo chunks"
         exit 1
       fi
   artifacts:
