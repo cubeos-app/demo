@@ -44,7 +44,8 @@ build:demo:
     - git clone --depth 1 ${DASHBOARD_REPO} dashboard-src
     - cd dashboard-src
     - npm ci --no-audit --no-fund
-    - echo "VITE_DEMO_MODE=$VITE_DEMO_MODE"
+    - echo "VITE_DEMO_MODE=true" >> .env.production.local
+    - cat .env.production.local
     - npm run build
     - echo "Build complete — $(find dist -type f | wc -l) files in dist/"
     - |
