@@ -16,7 +16,7 @@
 #
 # PREREQUISITES:
 #   - Group CI vars: GHCR_USER, GHCR_TOKEN, AWX_HOST, AWX_TOKEN
-#   - Project CI var: AWX_JOB_TEMPLATE_ID=42
+#   - Project CI var: AWX_DEMO_TEMPLATE_ID=42
 #   - Dashboard repo accessible via CI_JOB_TOKEN (same group)
 # =============================================================================
 
@@ -87,11 +87,11 @@ deploy:demo:
   script:
     - apk add --no-cache curl jq
     - |
-      echo "Triggering AWX job template ${AWX_JOB_TEMPLATE_ID}..."
+      echo "Triggering AWX job template ${AWX_DEMO_TEMPLATE_ID}..."
       RESPONSE=$(curl -s -X POST \
         -H "Authorization: Bearer ${AWX_TOKEN}" \
         -H "Content-Type: application/json" \
-        "${AWX_HOST}/api/v2/job_templates/${AWX_JOB_TEMPLATE_ID}/launch/")
+        "${AWX_HOST}/api/v2/job_templates/${AWX_DEMO_TEMPLATE_ID}/launch/")
 
       JOB_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
       if [ -z "$JOB_ID" ]; then

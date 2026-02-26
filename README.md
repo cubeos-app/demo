@@ -50,4 +50,4 @@ with the latest dashboard changes, even without explicit triggers.
 | `GHCR_TOKEN` | Group | GitHub Container Registry token |
 | `AWX_HOST` | Group | AWX API base URL |
 | `AWX_TOKEN` | Group | AWX API bearer token |
-| `AWX_JOB_TEMPLATE_ID` | Project | AWX job template ID (42) |
+| `AWX_DEMO_TEMPLATE_ID` | Project | AWX job template ID (42) |
