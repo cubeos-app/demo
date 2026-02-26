@@ -1,0 +1,134 @@
+# =============================================================================
+# CubeOS Demo Pipeline
+# =============================================================================
+# Builds the CubeOS dashboard with VITE_DEMO_MODE=true, packages as a Docker
+# image, and deploys to DMZ via AWX.
+#
+# WORKFLOW:
+#   1. Push to main → build dashboard with demo mode → package as Docker image
+#   2. Push image to GHCR (ghcr.io/cubeos-app/demo:latest)
+#   3. Trigger AWX job template to deploy on DMZ nodes
+#
+# TRIGGERS:
+#   - Automatic on push to main
+#   - Triggered by dashboard repo via pipeline trigger (token-based)
+#   - Scheduled pipeline (optional, configure in GitLab CI/CD → Schedules)
+#
+# PREREQUISITES:
+#   - Group CI vars: GHCR_USER, GHCR_TOKEN, AWX_HOST, AWX_TOKEN
+#   - Project CI var: AWX_JOB_TEMPLATE_ID=42
+#   - Dashboard repo accessible via CI_JOB_TOKEN (same group)
+# =============================================================================
+
+stages:
+  - build
+  - package
+  - deploy
+
+variables:
+  DEMO_BASE_IMAGE: "registry-gitlab.nuclearlighters.net/infrastructure/nllei01/production/cubeos-demo-nginx-base:latest"
+  GHCR_IMAGE: "ghcr.io/cubeos-app/demo"
+  DASHBOARD_REPO: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.nuclearlighters.net/products/cubeos/dashboard.git"
+
+# =============================================================================
+# Build: Clone dashboard, build with VITE_DEMO_MODE=true
+# =============================================================================
+build:demo:
+  stage: build
+  tags: [multiarch]
+  image: node:20-alpine
+  script:
+    - apk add --no-cache git
+    - git clone --depth 1 ${DASHBOARD_REPO} dashboard-src
+    - cd dashboard-src
+    - npm ci --no-audit --no-fund
+    - VITE_DEMO_MODE=true npm run build
+    - echo "Build complete — $(find dist -type f | wc -l) files in dist/"
+  artifacts:
+    paths:
+      - dashboard-src/dist/
+    expire_in: 1 hour
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# =============================================================================
+# Package: Build Docker image and push to GHCR
+# =============================================================================
+package:demo:
+  stage: package
+  tags: [multiarch]
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+    - docker login registry-gitlab.nuclearlighters.net -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+  script:
+    - |
+      cat > Dockerfile.demo << 'DOCKERFILE'
+      ARG BASE_IMAGE
+      FROM ${BASE_IMAGE}
+      COPY dashboard-src/dist/ /usr/share/nginx/html/
+      DOCKERFILE
+    - docker build --no-cache --file Dockerfile.demo
+        --build-arg BASE_IMAGE=${DEMO_BASE_IMAGE}
+        -t ${GHCR_IMAGE}:latest
+        -t ${GHCR_IMAGE}:${CI_COMMIT_SHORT_SHA} .
+    - docker push ${GHCR_IMAGE}:latest
+    - docker push ${GHCR_IMAGE}:${CI_COMMIT_SHORT_SHA}
+    - echo "Pushed ${GHCR_IMAGE}:latest and ${GHCR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+  needs: [build:demo]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# =============================================================================
+# Deploy: Trigger AWX job template to deploy on DMZ
+# =============================================================================
+deploy:demo:
+  stage: deploy
+  tags: [multiarch]
+  image: alpine:latest
+  script:
+    - apk add --no-cache curl jq
+    - |
+      echo "Triggering AWX job template ${AWX_JOB_TEMPLATE_ID}..."
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${AWX_TOKEN}" \
+        -H "Content-Type: application/json" \
+        "${AWX_HOST}/api/v2/job_templates/${AWX_JOB_TEMPLATE_ID}/launch/")
+
+      JOB_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
+      if [ -z "$JOB_ID" ]; then
+        echo "ERROR: Failed to launch AWX job"
+        echo "$RESPONSE" | jq .
+        exit 1
+      fi
+      echo "AWX Job launched: ${JOB_ID}"
+
+      # Poll for completion (max 5 minutes)
+      for i in $(seq 1 30); do
+        sleep 10
+        STATUS=$(curl -s -H "Authorization: Bearer ${AWX_TOKEN}" \
+          "${AWX_HOST}/api/v2/jobs/${JOB_ID}/" | jq -r '.status')
+        echo "  [$i/30] Status: $STATUS"
+        case "$STATUS" in
+          successful)
+            echo "Deploy successful!"
+            exit 0
+            ;;
+          failed|error|canceled)
+            echo "Deploy failed with status: $STATUS"
+            exit 1
+            ;;
+        esac
+      done
+      echo "ERROR: Timed out waiting for AWX job"
+      exit 1
+  needs: [package:demo]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: demo
+    url: https://demo.cubeos.app
