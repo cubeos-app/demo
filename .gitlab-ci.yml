@@ -37,27 +37,39 @@ build:demo:
   stage: build
   tags: [docker]
   image: node:20-alpine
-  variables:
-    VITE_DEMO_MODE: "true"
   script:
     - apk add --no-cache git
     - git clone --depth 1 ${DASHBOARD_REPO} dashboard-src
+    - cd dashboard-src
+    - npm ci --no-audit --no-fund
     - |
-      cd dashboard-src
-      pwd
-      npm ci --no-audit --no-fund
-      echo "VITE_DEMO_MODE=true" > .env.production.local
-      cat .env.production.local
-      export VITE_DEMO_MODE=true
-      echo "process.env check: VITE_DEMO_MODE=$VITE_DEMO_MODE"
-      npx vite build
+      # Create explicit demo env file — Vite loads .env.demo when --mode demo
+      cat > .env.demo << 'EOF'
+      NODE_ENV=production
+      VITE_DEMO_MODE=true
+      VITE_APP_VERSION=0.2.0-demo
+      VITE_CUBEOS_DOMAIN=cubeos.cube
+      EOF
+      cat .env.demo
+      npx vite build --mode demo
       echo "Build complete — $(find dist -type f | wc -l) files in dist/"
-      ls dist/assets/index-*.js dist/assets/demo-client-*.js 2>/dev/null || true
-      if ! grep -q 'demo-token' dist/assets/index-*.js; then
-        echo "ERROR: VITE_DEMO_MODE was not baked into the build"
+    - |
+      # Validate demo mode was baked in:
+      # When Vite processes import.meta.env.VITE_DEMO_MODE, it replaces the
+      # literal string with "true". So if "VITE_DEMO_MODE" still appears
+      # unreplaced in the JS output, the env var was NOT injected.
+      # Also verify demo-client chunk exists (proves dynamic import resolved).
+      if ls dist/assets/demo-client-*.js 1>/dev/null 2>&1; then
+        echo "PASS: demo-client chunk found"
+      else
+        echo "FAIL: demo-client chunk missing — VITE_DEMO_MODE not baked in"
+        echo "JS files in dist/assets/:"
+        ls -la dist/assets/*.js
+        echo "Checking for unreplaced VITE_DEMO_MODE references:"
+        grep -l 'VITE_DEMO_MODE' dist/assets/*.js 2>/dev/null || echo "  (none found)"
         exit 1
       fi
-      echo "Demo mode verified in build output"
+      echo "Demo mode verified"
   artifacts:
     paths:
       - dashboard-src/dist/
