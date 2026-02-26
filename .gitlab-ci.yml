@@ -44,15 +44,17 @@ build:demo:
     - git clone --depth 1 ${DASHBOARD_REPO} dashboard-src
     - cd dashboard-src
     - npm ci --no-audit --no-fund
-    - echo "VITE_DEMO_MODE=true" >> .env.production.local
-    - cat .env.production.local
-    - npm run build
-    - echo "Build complete — $(find dist -type f | wc -l) files in dist/"
     - |
+      echo "VITE_DEMO_MODE=true" > .env.production.local
+      cat .env.production.local
+      export VITE_DEMO_MODE=true
+      npm run build
+      echo "Build complete — $(find dist -type f | wc -l) files in dist/"
       if ! grep -q 'demo-token' dist/assets/index-*.js; then
         echo "ERROR: VITE_DEMO_MODE was not baked into the build"
         exit 1
       fi
+      echo "Demo mode verified in build output"
   artifacts:
     paths:
       - dashboard-src/dist/
