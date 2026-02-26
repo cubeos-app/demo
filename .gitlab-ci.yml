@@ -45,12 +45,12 @@ build:demo:
     - |
       # Create explicit demo env file — Vite loads .env.demo when --mode demo
       cat > .env.demo << 'EOF'
-      NODE_ENV=production
       VITE_DEMO_MODE=true
       VITE_APP_VERSION=0.2.0-demo
       VITE_CUBEOS_DOMAIN=cubeos.cube
       EOF
       cat .env.demo
+      export VITE_DEMO_MODE=true
       npx vite build --mode demo
       echo "Build complete — $(find dist -type f | wc -l) files in dist/"
     - |
