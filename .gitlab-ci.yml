@@ -42,14 +42,17 @@ build:demo:
   script:
     - apk add --no-cache git
     - git clone --depth 1 ${DASHBOARD_REPO} dashboard-src
-    - cd dashboard-src
-    - npm ci --no-audit --no-fund
     - |
+      cd dashboard-src
+      pwd
+      npm ci --no-audit --no-fund
       echo "VITE_DEMO_MODE=true" > .env.production.local
       cat .env.production.local
       export VITE_DEMO_MODE=true
-      npm run build
+      echo "process.env check: VITE_DEMO_MODE=$VITE_DEMO_MODE"
+      npx vite build
       echo "Build complete — $(find dist -type f | wc -l) files in dist/"
+      ls dist/assets/index-*.js dist/assets/demo-client-*.js 2>/dev/null || true
       if ! grep -q 'demo-token' dist/assets/index-*.js; then
         echo "ERROR: VITE_DEMO_MODE was not baked into the build"
         exit 1
