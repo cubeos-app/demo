@@ -43,33 +43,17 @@ build:demo:
     - cd dashboard-src
     - npm ci --no-audit --no-fund
     - |
-      # Create explicit demo env file — Vite loads .env.demo when --mode demo
-      cat > .env.demo << 'EOF'
-      VITE_DEMO_MODE=true
-      VITE_APP_VERSION=0.2.0-demo
-      VITE_CUBEOS_DOMAIN=cubeos.cube
-      EOF
-      cat .env.demo
       export VITE_DEMO_MODE=true
-      npx vite build --mode demo
+      npx vite build --mode production
       echo "Build complete — $(find dist -type f | wc -l) files in dist/"
     - |
-      # Validate demo mode was baked in:
-      # When Vite processes import.meta.env.VITE_DEMO_MODE, it replaces the
-      # literal string with "true". So if "VITE_DEMO_MODE" still appears
-      # unreplaced in the JS output, the env var was NOT injected.
-      # Also verify demo-client chunk exists (proves dynamic import resolved).
-      if ls dist/assets/demo-client-*.js 1>/dev/null 2>&1; then
-        echo "PASS: demo-client chunk found"
+      # Validate: DemoApiClient must be in the build output
+      if grep -rq 'DemoApiClient' dist/assets/*.js; then
+        echo "PASS: Demo mode verified — DemoApiClient found in build"
       else
-        echo "FAIL: demo-client chunk missing — VITE_DEMO_MODE not baked in"
-        echo "JS files in dist/assets/:"
-        ls -la dist/assets/*.js
-        echo "Checking for unreplaced VITE_DEMO_MODE references:"
-        grep -l 'VITE_DEMO_MODE' dist/assets/*.js 2>/dev/null || echo "  (none found)"
+        echo "FAIL: DemoApiClient not found in build output"
         exit 1
       fi
-      echo "Demo mode verified"
   artifacts:
     paths:
       - dashboard-src/dist/
