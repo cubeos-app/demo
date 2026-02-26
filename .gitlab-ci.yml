@@ -58,16 +58,13 @@ package:demo:
   stage: package
   tags: [docker]
   image: docker:24
-  services:
-    - docker:24-dind
   variables:
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_BUILDKIT: "0"
+    DOCKER_API_VERSION: "1.41"
   before_script:
     - echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
     - docker login registry-gitlab.nuclearlighters.net -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
   script:
-    - docker pull ${DEMO_BASE_IMAGE}
+    - docker pull ${DEMO_BASE_IMAGE} || true
     - printf 'ARG BASE_IMAGE\nFROM ${BASE_IMAGE}\nCOPY dashboard-src/dist/ /usr/share/nginx/html/\n' > Dockerfile.demo
     - docker build --no-cache --file Dockerfile.demo
         --build-arg BASE_IMAGE=${DEMO_BASE_IMAGE}
