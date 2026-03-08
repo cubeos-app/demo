@@ -21,6 +21,7 @@
 # =============================================================================
 
 stages:
+  - validate
   - build
   - package
   - deploy
@@ -29,6 +30,40 @@ variables:
   DEMO_BASE_IMAGE: "registry-gitlab.nuclearlighters.net/infrastructure/nllei01/production/cubeos-demo-nginx-base:latest"
   GHCR_IMAGE: "ghcr.io/cubeos-app/demo"
   DASHBOARD_REPO: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.nuclearlighters.net/products/cubeos/dashboard.git"
+
+# =============================================================================
+# CONSISTENCY CHECK — CubeOS critical rules gate (minimal: traceability only)
+# =============================================================================
+lint:consistency:
+  stage: validate
+  image: alpine:latest
+  tags: [docker]
+  variables:
+    GIT_DEPTH: 50
+  before_script:
+    - apk add --no-cache git bash
+  script:
+    - |
+      bash <<'CONSISTENCY_CHECK'
+      WARNINGS=()
+      if ! echo "$CI_COMMIT_MESSAGE" | grep -qE '\[CUBEOS-[0-9]+\]'; then
+        if ! echo "$CI_COMMIT_MESSAGE" | grep -qE '^chore: bump version'; then
+          WARNINGS+=("Traceability: commit has no [CUBEOS-XX] reference")
+        fi
+      fi
+      echo ""
+      echo "=== Consistency Check: demo ==="
+      if [ ${#WARNINGS[@]} -gt 0 ]; then
+        echo "WARNINGS (review recommended):"
+        for w in "${WARNINGS[@]}"; do echo "  [WARN]  $w"; done
+      else
+        echo "  All checks passed."
+      fi
+      echo "PASSED"
+      CONSISTENCY_CHECK
+  rules:
+    - when: always
+  allow_failure: true
 
 # =============================================================================
 # Build: Clone dashboard, build with VITE_DEMO_MODE=true
