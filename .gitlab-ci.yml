@@ -111,7 +111,7 @@ package:demo:
   script:
     - docker pull ${DEMO_BASE_IMAGE} || true
     - printf 'ARG BASE_IMAGE\nFROM ${BASE_IMAGE}\nCOPY dashboard-src/dist/ /usr/share/nginx/html/\n' > Dockerfile.demo
-    - docker build --no-cache --file Dockerfile.demo
+    - docker build --pull --no-cache --file Dockerfile.demo
         --build-arg BASE_IMAGE=${DEMO_BASE_IMAGE}
         -t ${GHCR_IMAGE}:latest
         -t ${GHCR_IMAGE}:${CI_COMMIT_SHORT_SHA} .
